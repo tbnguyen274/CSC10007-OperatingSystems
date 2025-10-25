@@ -5,6 +5,30 @@
 
 #define MAXLINE 512
 
+// Process a line and execute
+static void process_and_run(char *buf, char *xargv[], int xargc) {
+    // Set up arguments: original command args + line from stdin
+	xargv[xargc] = buf;
+	xargv[xargc + 1] = 0; // Null-terminate the argument array
+
+	// Fork and execute the command
+	int pid = fork();
+	if (pid < 0) {
+		fprintf(2, "xargs: fork failed\n");
+		exit(1);
+	}
+	if (pid == 0) {
+		exec(xargv[0], xargv);
+
+		// Only run on exec failure
+		fprintf(2, "xargs: exec %s failed\n", xargv[0]);
+		exit(1);
+	}
+
+	wait(0);	// Wait for child to complete
+}
+
+
 int main(int argc, char *argv[]) {
 	char buf[MAXLINE];
 	char *xargv[MAXARG];
@@ -32,24 +56,13 @@ int main(int argc, char *argv[]) {
 		// Read a character at a time (until '\n' or EOF)
 		while (1) {
 			n = read(0, &c, 1);
-			if (n <= 0) {	// EOF
-				if (i > 0) {		// Unfinished line
+
+			// EOF
+			if (n <= 0) {
+				// Unfinished line
+				if (i > 0) {
 					buf[i] = 0;	// Null-terminate
-
-					// Set up arguments: original command args + line from stdin
-					xargv[xargc] = buf;
-					xargv[xargc + 1] = 0;	// Null-terminate
-					
-					// Fork and execute the command
-					if (fork() == 0) {
-						exec(xargv[0], xargv);
-
-						// Only run on exec failure
-						fprintf(2, "xargs: exec %s failed\n", xargv[0]);
-						exit(1);
-					}
-
-					wait(0);	// Wait for child to complete
+					process_and_run(buf, xargv, xargc);
 				}
 				
 				exit(0);
@@ -76,25 +89,7 @@ int main(int argc, char *argv[]) {
 			continue;
 		}
 
-		// Set up arguments: original command args + line from stdin
-		xargv[xargc] = buf;
-		xargv[xargc + 1] = 0; // Null-terminate the argument array
-
-		// Fork and execute the command
-		int pid = fork();
-		if (pid < 0) {
-			fprintf(2, "xargs: fork failed\n");
-			exit(1);
-		}
-		if (pid == 0) {
-			exec(xargv[0], xargv);
-
-			// Only run on exec failure
-			fprintf(2, "xargs: exec %s failed\n", xargv[0]);
-			exit(1);
-		}
-
-		wait(0);	// Wait for child to complete
+		process_and_run(buf, xargv, xargc);
 	}
 
 	exit(0);
