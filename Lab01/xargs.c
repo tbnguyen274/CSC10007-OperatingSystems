@@ -10,8 +10,8 @@ int main(int argc, char *argv[]) {
 	char *xargv[MAXARG];
 	int i, n, xargc;
 	char c;
-	int line_pos;
 
+	// Check for at least one argument (the command to execute)
 	if (argc < 2) {
 		fprintf(2, "Usage: xargs command [args...]\n");
 		exit(1);
@@ -25,54 +25,58 @@ int main(int argc, char *argv[]) {
 
 	xargc = argc - 1;
 
-	// Read lines from stdin and execute command for each line
+	// Read lines from stdin and execute
 	while (1) {
-		line_pos = 0;
+		i = 0;
 
 		// Read a character at a time (until '\n' or EOF)
 		while (1) {
 			n = read(0, &c, 1);
-			if (n <= 0) {
-				// EOF
-				if (line_pos > 0) {
-					// Process the last line if there's content
-					buf[line_pos] = 0;
-					xargv[xargc] = buf;
-					xargv[xargc + 1] = 0;
+			if (n <= 0) {	// EOF
+				if (i > 0) {		// Unfinished line
+					buf[i] = 0;	// Null-terminate
 
+					// Set up arguments: original command args + line from stdin
+					xargv[xargc] = buf;
+					xargv[xargc + 1] = 0;	// Null-terminate
+					
+					// Fork and execute the command
 					if (fork() == 0) {
 						exec(xargv[0], xargv);
+
+						// Only run on exec failure
 						fprintf(2, "xargs: exec %s failed\n", xargv[0]);
 						exit(1);
 					}
 
-					wait(0);
+					wait(0);	// Wait for child to complete
 				}
 				
 				exit(0);
 			}
 
+			// End of line -> break out to process
 			if (c == '\n') {
 				break;
 			}
 
-			if (line_pos >= MAXLINE - 1) {
+			// Avoid buffer overflow
+			if (i >= MAXLINE - 1) {
 				fprintf(2, "xargs: line too long\n");
 				exit(1);
 			}
 
-			buf[line_pos++] = c;
+			buf[i++] = c;
 		}
 
-		// Null-terminate the line
-		buf[line_pos] = 0;
+		buf[i] = 0;	// Null-terminate
 
 		// Skip empty lines
-		if (line_pos == 0) {
+		if (i == 0) {
 			continue;
 		}
 
-		// Set up arguments: original command args + the line from stdin
+		// Set up arguments: original command args + line from stdin
 		xargv[xargc] = buf;
 		xargv[xargc + 1] = 0; // Null-terminate the argument array
 
@@ -84,12 +88,13 @@ int main(int argc, char *argv[]) {
 		}
 		if (pid == 0) {
 			exec(xargv[0], xargv);
-			fprintf(2, "xargs: exec %s failed\n", xargv[0]);	// Only run on exec failure
+
+			// Only run on exec failure
+			fprintf(2, "xargs: exec %s failed\n", xargv[0]);
 			exit(1);
 		}
 
-		// Wait for child to complete
-		wait(0);
+		wait(0);	// Wait for child to complete
 	}
 
 	exit(0);

@@ -3,6 +3,9 @@
 #include "user/user.h"
 #include "kernel/fs.h"
 
+#define MAXPATH 512
+
+// Extracts file name from a given path
 char *fmtname(char *path) {
 	char *p;
 
@@ -14,8 +17,9 @@ char *fmtname(char *path) {
 	return p;
 }
 
+// Recursively search for files with the name <filename> starting from the given path
 void find(char *path, char *filename) {
-	char buf[512], *p;
+	char buf[MAXPATH], *p;
 	int fd;
 	struct dirent de;
 	struct stat st;
@@ -50,14 +54,16 @@ void find(char *path, char *filename) {
 		while (read(fd, &de, sizeof(de)) == sizeof(de)) {
 			if (de.inum == 0)
 				continue;
+
+			// Copy the directory entry name into the buffer
 			memmove(p, de.name, DIRSIZ);
-			p[DIRSIZ] = 0;
+			p[DIRSIZ] = 0;	// Null-terminate
 			if (stat(buf, &st) < 0) {
 				printf("find: cannot stat %s\n", buf);
 				continue;
 			}
 
-			// Don't recurse into "." and ".."
+			// Avoid recursing into "." and ".."
 			if (strcmp(de.name, ".") != 0 && strcmp(de.name, "..") != 0) {
 				// Check if current entry matches the filename
 				if (strcmp(de.name, filename) == 0) {
